@@ -13,254 +13,184 @@ export default function App () {
     setQuery((q) => (q ? `${q} ${t}` : t))
   }, [setQuery])
 
-  // Card collapse states
-  const [studiesOpen, setStudiesOpen] = useState(true)
-  const [niiOpen, setNiiOpen] = useState(true)
+  // Panel visibility states
+  const [visiblePanels, setVisiblePanels] = useState(['studies', 'viewer'])
+  
+  // Selected studies for brain viewer filtering
+  const [selectedStudies, setSelectedStudies] = useState([])
+  
+  // Study detail panel
+  const [detailStudy, setDetailStudy] = useState(null)
 
-  // Both open = side by side layout
-  const bothOpen = studiesOpen && niiOpen
+  const handleStudySelection = useCallback((studies) => {
+    setSelectedStudies(studies)
+  }, [])
+
+  const togglePanel = (panel) => {
+    setVisiblePanels(prev => {
+      if (prev.includes(panel)) {
+        return prev.filter(p => p !== panel)
+      } else {
+        return [...prev, panel]
+      }
+    })
+  }
+
+  const isPanelVisible = (panel) => visiblePanels.includes(panel)
 
   return (
-    <div className="app dashboard-layout">
-      {/* Inline style injection */}
-      <style>{`
-        :root {
-          --primary-600: #2563eb;
-          --border: #e5e7eb;
-        }
-        .dashboard-layout {
-          padding: 18px !important;
-          max-width: 100vw;
-          height: 100vh;
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-        .dashboard-header {
-          margin-bottom: 18px;
-          flex-shrink: 0;
-        }
-        .dashboard-search-bar {
-          background: white;
-          border: 1px solid var(--border);
-          border-radius: 14px;
-          padding: 16px;
-          margin-bottom: 18px;
-          flex-shrink: 0;
-        }
-        .dashboard-grid {
-          display: grid;
-          grid-template-columns: 250px 1fr;
-          gap: 18px;
-          align-items: start;
-          flex: 1;
-          min-height: 0;
-          overflow: hidden;
-        }
-        .dashboard-left {
-          height: 100%;
-          overflow: auto;
-        }
-        .dashboard-right {
-          display: flex;
-          flex-direction: column;
-          gap: 18px;
-          height: 100%;
-          overflow: hidden;
-        }
-        .dashboard-right.split-layout {
-          flex-direction: row;
-          gap: 18px;
-        }
-        .dashboard-right.split-layout > .collapsible-card {
-          flex: 1;
-          min-width: 0;
-          height: 100%;
-        }
-        .collapsible-card {
-          background: white;
-          border: 1px solid var(--border);
-          border-radius: 14px;
-          overflow: hidden;
-          transition: all 0.3s ease;
-          display: flex;
-          flex-direction: column;
-        }
-        .collapsible-card.full-height {
-          flex: 1;
-          min-height: 0;
-        }
-        .collapsible-card__header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 12px 16px;
-          cursor: pointer;
-          user-select: none;
-          border-bottom: 1px solid var(--border);
-          background: #fafafa;
-          flex-shrink: 0;
-        }
-        .collapsible-card__header:hover {
-          background: #f3f4f6;
-        }
-        .collapsible-card__title {
-          font-weight: 600;
-          font-size: 15px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .collapsible-card__toggle {
-          font-size: 18px;
-          color: #6b7280;
-          transition: transform 0.3s ease;
-        }
-        .collapsible-card__toggle.open {
-          transform: rotate(180deg);
-        }
-        .collapsible-card__content {
-          display: none;
-          overflow: auto;
-          flex: 1;
-          min-height: 0;
-        }
-        .collapsible-card__content.open {
-          display: block;
-        }
-        .collapsible-card__body {
-          padding: 0;
-          height: 100%;
-        }
-        .card-icon {
-          font-size: 16px;
-        }
-        
-        /* Responsive */
-        @media (max-width: 1023px) {
-          .dashboard-layout {
-            height: auto;
-            overflow: auto;
-          }
-          .dashboard-grid {
-            grid-template-columns: 1fr;
-            gap: 12px;
-            height: auto;
-            overflow: visible;
-          }
-          .dashboard-left {
-            height: auto;
-          }
-          .dashboard-right {
-            height: auto;
-            overflow: visible;
-          }
-          .dashboard-right.split-layout {
-            flex-direction: column;
-          }
-          .collapsible-card.full-height {
-            flex: none;
-            min-height: 400px;
-          }
-          .dashboard-layout {
-            padding: 12px !important;
-          }
-        }
-        
-        /* Override button styles */
-        .card button,
-        .card [role="button"],
-        .card .btn,
-        .card .button {
-          font-size: 12px !important;
-          padding: 4px 8px !important;
-          border-radius: 8px !important;
-          line-height: 1.2 !important;
-          background: var(--primary-600) !important;
-          color: #fff !important;
-          border: none !important;
-        }
-        .card button:hover,
-        .card button:active,
-        .card [role="button"]:hover,
-        .card [role="button"]:active {
-          background: var(--primary-600) !important;
-          color: #fff !important;
-        }
-        .card button:disabled,
-        .card [aria-disabled="true"] {
-          background: var(--primary-600) !important;
-          color: #fff !important;
-          opacity: .55 !important;
-        }
-      `}</style>
-
-      {/* Header */}
-      <header className="dashboard-header">
-        <h1 className="app__title">LoTUS-BF</h1>
-        <div className="app__subtitle">Location-or-Term Unified Search for Brain Functions</div>
+    <div className="lotus-app">
+      {/* Header with Logo + Search */}
+      <header className="lotus-header">
+        <div className="lotus-header__brand">
+          <h1 className="lotus-logo">LoTUS-BF</h1>
+          <span className="lotus-tagline">Brain Function Search Platform</span>
+        </div>
+        <div className="lotus-header__search">
+          <QueryBuilder query={query} setQuery={setQuery} />
+        </div>
       </header>
 
-      {/* Search Bar */}
-      <div className="dashboard-search-bar">
-        <QueryBuilder query={query} setQuery={setQuery} />
-      </div>
+      {/* Panel Toggle Bar */}
+      <nav className="lotus-panel-toggle">
+        <button 
+          className={`panel-toggle-btn ${isPanelVisible('terms') ? 'active' : ''}`}
+          onClick={() => togglePanel('terms')}
+        >
+          <span className="btn-icon">📚</span>
+          <span>Terms</span>
+        </button>
+        <button 
+          className={`panel-toggle-btn ${isPanelVisible('studies') ? 'active' : ''}`}
+          onClick={() => togglePanel('studies')}
+        >
+          <span className="btn-icon">📊</span>
+          <span>Studies</span>
+        </button>
+        <button 
+          className={`panel-toggle-btn ${isPanelVisible('viewer') ? 'active' : ''}`}
+          onClick={() => togglePanel('viewer')}
+        >
+          <span className="btn-icon">🧠</span>
+          <span>Brain Viewer</span>
+        </button>
+      </nav>
 
-      {/* Dashboard Grid */}
-      <div className="dashboard-grid">
-        {/* Left: Terms Card (Fixed) */}
-        <aside className="dashboard-left">
-          <div className="card" style={{ padding: '12px' }}>
-            <div className="card__title" style={{ marginBottom: '10px' }}>Terms</div>
-            <Terms onPickTerm={handlePickTerm} />
+      {/* Main Content Grid */}
+      <main className="lotus-content">
+        {/* Empty State when no panels visible */}
+        {visiblePanels.length === 0 && (
+          <div className="lotus-empty-state">
+            <div className="empty-state-icon">🧠</div>
+            <h2 className="empty-state-title">No panels selected</h2>
+            <p className="empty-state-desc">
+              Select at least one panel from the toolbar above to begin exploring brain function data
+            </p>
           </div>
-        </aside>
+        )}
 
-        {/* Right: Collapsible Cards */}
-        <main className={`dashboard-right ${bothOpen ? 'split-layout' : ''}`}>
-          {/* Studies Card */}
-          <div className={`collapsible-card ${studiesOpen ? 'full-height' : ''}`}>
-            <div 
-              className="collapsible-card__header"
-              onClick={() => setStudiesOpen(!studiesOpen)}
-            >
-              <div className="collapsible-card__title">
-                <span className="card-icon">📊</span>
-                Studies
-              </div>
-              <span className={`collapsible-card__toggle ${studiesOpen ? 'open' : ''}`}>
-                ▼
-              </span>
+        {/* Terms Panel */}
+        {isPanelVisible('terms') && (
+          <aside className="lotus-panel lotus-panel--terms">
+            <div className="lotus-panel__header">
+              <h2 className="lotus-panel__title">Available Terms</h2>
             </div>
-            <div className={`collapsible-card__content ${studiesOpen ? 'open' : ''}`}>
-              <div className="collapsible-card__body">
-                <Studies query={query} />
-              </div>
+            <div className="lotus-panel__body">
+              <Terms onPickTerm={handlePickTerm} />
             </div>
-          </div>
+          </aside>
+        )}
 
-          {/* Brain Visualization Card */}
-          <div className={`collapsible-card ${niiOpen ? 'full-height' : ''}`}>
-            <div 
-              className="collapsible-card__header"
-              onClick={() => setNiiOpen(!niiOpen)}
-            >
-              <div className="collapsible-card__title">
-                <span className="card-icon">🧠</span>
-                Brain Visualization
-              </div>
-              <span className={`collapsible-card__toggle ${niiOpen ? 'open' : ''}`}>
-                ▼
-              </span>
+        {/* Studies Panel */}
+        {isPanelVisible('studies') && (
+          <section className="lotus-panel lotus-panel--studies">
+            <div className="lotus-panel__body">
+              <Studies 
+                query={query}
+                onSelectionChange={handleStudySelection}
+                onStudyClick={setDetailStudy}
+              />
             </div>
-            <div className={`collapsible-card__content ${niiOpen ? 'open' : ''}`}>
-              <div className="collapsible-card__body" style={{ padding: '12px' }}>
-                <NiiViewer query={query} />
-              </div>
+          </section>
+        )}
+
+        {/* Brain Viewer Panel */}
+        {isPanelVisible('viewer') && (
+          <section className="lotus-panel lotus-panel--viewer">
+            <div className="lotus-panel__body">
+              <NiiViewer 
+                query={query}
+                selectedStudies={selectedStudies}
+              />
             </div>
-          </div>
-        </main>
-      </div>
+          </section>
+        )}
+      </main>
+
+      {/* Detail Panel Overlay */}
+      {detailStudy && (
+        <>
+          <div className="lotus-overlay" onClick={() => setDetailStudy(null)} />
+          <aside className="lotus-detail-panel">
+            <header className="lotus-detail-panel__header">
+              <h3>Study Details</h3>
+              <button 
+                className="lotus-close-btn"
+                onClick={() => setDetailStudy(null)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </header>
+            <div className="lotus-detail-panel__body">
+              <h2 className="detail-title">{detailStudy.title}</h2>
+              
+              <dl className="detail-meta">
+                {detailStudy.authors && (
+                  <>
+                    <dt>Authors</dt>
+                    <dd>{detailStudy.authors}</dd>
+                  </>
+                )}
+                {detailStudy.journal && (
+                  <>
+                    <dt>Journal</dt>
+                    <dd>{detailStudy.journal}</dd>
+                  </>
+                )}
+                {detailStudy.year && (
+                  <>
+                    <dt>Year</dt>
+                    <dd>{detailStudy.year}</dd>
+                  </>
+                )}
+                {detailStudy.study_id && (
+                  <>
+                    <dt>PMID</dt>
+                    <dd>
+                      <a 
+                        href={`https://pubmed.ncbi.nlm.nih.gov/${detailStudy.study_id}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="detail-link"
+                      >
+                        {detailStudy.study_id}
+                      </a>
+                    </dd>
+                  </>
+                )}
+              </dl>
+
+              {detailStudy.abstract && (
+                <div className="detail-abstract">
+                  <h4>Abstract</h4>
+                  <p>{detailStudy.abstract}</p>
+                </div>
+              )}
+            </div>
+          </aside>
+        </>
+      )}
     </div>
   )
 }

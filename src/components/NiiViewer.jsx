@@ -371,15 +371,23 @@ export function NiiViewer({ query }) {
           display: grid;
           grid-template-columns: 1fr 1fr;
           grid-template-rows: 1fr 1fr;
-          gap: 12px;
+          gap: 16px;
           flex: 1;
           min-height: 0;
+          padding: 4px;
         }
         .nii-quad-item {
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 8px;
           min-height: 0;
+        }
+        .nii-quad-label {
+          font-size: 12px;
+          color: var(--gray-600);
+          font-weight: 600;
+          padding: 0 4px;
+          flex-shrink: 0;
         }
         .nii-quad-canvas {
           width: 100%;
@@ -441,25 +449,25 @@ export function NiiViewer({ query }) {
           <div className='nii-quad-grid'>
             {/* Top-left: Sagittal */}
             <div className='nii-quad-item'>
-              <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>Sagittal (X)</div>
+              <div className='nii-quad-label'>Sagittal (X)</div>
               <canvas ref={canvases[2]} className='nii-quad-canvas' onClick={(e)=>onCanvasClick(e, 'x')} />
             </div>
 
             {/* Top-right: Coronal */}
             <div className='nii-quad-item'>
-              <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>Coronal (Y)</div>
+              <div className='nii-quad-label'>Coronal (Y)</div>
               <canvas ref={canvases[1]} className='nii-quad-canvas' onClick={(e)=>onCanvasClick(e, 'y')} />
             </div>
 
             {/* Bottom-left: Axial */}
             <div className='nii-quad-item'>
-              <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>Axial (Z)</div>
+              <div className='nii-quad-label'>Axial (Z)</div>
               <canvas ref={canvases[0]} className='nii-quad-canvas' onClick={(e)=>onCanvasClick(e, 'z')} />
             </div>
 
             {/* Bottom-right: Controls */}
             <div className='nii-quad-item'>
-              <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>Controls</div>
+              <div className='nii-quad-label'>Controls</div>
               <div className='nii-controls-panel'>
                 {/* Overlay Alpha */}
                 <div className='control-group'>

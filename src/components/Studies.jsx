@@ -3,16 +3,17 @@ import { useEffect, useMemo, useState } from 'react'
 
 function classNames (...xs) { return xs.filter(Boolean).join(' ') }
 
-export function Studies ({ query }) {
+export function Studies ({ query, onSelectionChange, onStudyClick }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
   const [sortKey, setSortKey] = useState('year')
   const [sortDir, setSortDir] = useState('desc')
   const [page, setPage] = useState(1)
+  const [selectedIds, setSelectedIds] = useState(new Set())
   const pageSize = 10
 
-  useEffect(() => { setPage(1) }, [query])
+  useEffect(() => { setPage(1); setSelectedIds(new Set()) }, [query])
 
   useEffect(() => {
     if (!query) return
@@ -40,6 +41,12 @@ export function Studies ({ query }) {
     return () => { alive = false; ac.abort() }
   }, [query])
 
+  // Notify parent when selection changes
+  useEffect(() => {
+    const selected = rows.filter((r, i) => selectedIds.has(i))
+    onSelectionChange?.(selected)
+  }, [selectedIds, rows, onSelectionChange])
+
   const changeSort = (key) => {
     if (key === sortKey) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
     else { setSortKey(key); setSortDir('asc') }
@@ -60,13 +67,28 @@ export function Studies ({ query }) {
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const pageRows = sorted.slice((page - 1) * pageSize, page * pageSize)
 
-  // Generate article URL from study_id (PMID)
+  const toggleSelection = (idx) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(idx)) next.delete(idx)
+      else next.add(idx)
+      return next
+    })
+  }
+
+  const selectAll = () => {
+    setSelectedIds(new Set(sorted.map((_, i) => i)))
+  }
+
+  const deselectAll = () => {
+    setSelectedIds(new Set())
+  }
+
   const getArticleUrl = (study) => {
     if (study.study_id) return `https://pubmed.ncbi.nlm.nih.gov/${study.study_id}/`
     return null
   }
 
-  // Truncate abstract to 2 lines (~200 chars)
   const truncateAbstract = (text) => {
     if (!text) return ''
     const maxLength = 200
@@ -91,6 +113,22 @@ export function Studies ({ query }) {
           border-bottom: 1px solid #e5e7eb;
           flex-shrink: 0;
         }
+        .studies-actions {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+        .studies-actions button {
+          padding: 4px 10px;
+          font-size: 12px;
+          border: 1px solid #e5e7eb;
+          border-radius: 6px;
+          background: white;
+          cursor: pointer;
+        }
+        .studies-actions button:hover {
+          background: #f9fafb;
+        }
         .studies-sort {
           display: flex;
           gap: 8px;
@@ -109,16 +147,36 @@ export function Studies ({ query }) {
           padding: 16px;
         }
         .study-item {
-          padding: 16px 0;
+          padding: 16px;
           border-bottom: 1px solid #e5e7eb;
+          display: flex;
+          gap: 12px;
+          transition: background 0.15s ease;
+        }
+        .study-item:hover {
+          background: #f9fafb;
         }
         .study-item:last-child {
           border-bottom: none;
+        }
+        .study-checkbox {
+          flex-shrink: 0;
+          margin-top: 2px;
+        }
+        .study-checkbox input {
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+        }
+        .study-content {
+          flex: 1;
+          min-width: 0;
         }
         .study-title {
           font-size: 16px;
           font-weight: 500;
           margin-bottom: 8px;
+          cursor: pointer;
         }
         .study-title a {
           color: #2563eb;
@@ -165,6 +223,10 @@ export function Studies ({ query }) {
         .study-tag.pmid-tag {
           background: #dbeafe;
           color: #1e40af;
+        }
+        .study-tag.selected-tag {
+          background: #dcfce7;
+          color: #166534;
         }
         .studies-loading {
           padding: 40px 16px;
@@ -230,21 +292,30 @@ export function Studies ({ query }) {
       <div className='studies-header'>
         <div style={{ fontSize: '13px', color: '#6b7280' }}>
           {query ? `${sorted.length} results` : 'Enter a query to search'}
+          {selectedIds.size > 0 && ` • ${selectedIds.size} selected`}
         </div>
-        {sorted.length > 0 && (
-          <div className='studies-sort'>
-            <span>Sort by:</span>
-            <select value={sortKey} onChange={(e) => { setSortKey(e.target.value); setSortDir('desc') }}>
-              <option value='year'>Year</option>
-              <option value='title'>Title</option>
-              <option value='authors'>Authors</option>
-              <option value='journal'>Journal</option>
-            </select>
-            <button onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')} style={{ padding: '4px 8px', fontSize: '12px' }}>
-              {sortDir === 'asc' ? '↑' : '↓'}
-            </button>
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          {sorted.length > 0 && (
+            <div className='studies-actions'>
+              <button onClick={selectAll}>Select All</button>
+              <button onClick={deselectAll}>Clear</button>
+            </div>
+          )}
+          {sorted.length > 0 && (
+            <div className='studies-sort'>
+              <span>Sort:</span>
+              <select value={sortKey} onChange={(e) => { setSortKey(e.target.value); setSortDir('desc') }}>
+                <option value='year'>Year</option>
+                <option value='title'>Title</option>
+                <option value='authors'>Authors</option>
+                <option value='journal'>Journal</option>
+              </select>
+              <button onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')} style={{ padding: '4px 8px', fontSize: '12px' }}>
+                {sortDir === 'asc' ? '↑' : '↓'}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {query && loading && (
@@ -275,44 +346,61 @@ export function Studies ({ query }) {
 
       {query && !loading && !err && pageRows.length > 0 && (
         <div className='studies-list'>
-          {pageRows.map((study, idx) => {
+          {pageRows.map((study, pageIdx) => {
+            const globalIdx = (page - 1) * pageSize + pageIdx
             const url = getArticleUrl(study)
+            const isSelected = selectedIds.has(globalIdx)
+            
             return (
-              <div key={idx} className='study-item'>
-                <div className='study-title'>
-                  {url ? (
-                    <a href={url} target='_blank' rel='noopener noreferrer'>
-                      {study.title || 'Untitled'}
-                    </a>
-                  ) : (
-                    <span>{study.title || 'Untitled'}</span>
-                  )}
+              <div key={pageIdx} className='study-item'>
+                <div className='study-checkbox'>
+                  <input
+                    type='checkbox'
+                    checked={isSelected}
+                    onChange={() => toggleSelection(globalIdx)}
+                    aria-label={`Select ${study.title}`}
+                  />
                 </div>
                 
-                <div className='study-meta'>
-                  {study.authors && <span>{study.authors} — </span>}
-                  {study.journal && <span className='study-meta-journal'>{study.journal}. </span>}
-                  {study.year && <span>({study.year})</span>}
-                  {study.study_id && (
-                    <>
-                      <br />
-                      <span>PMID: </span>
-                      <a href={`https://pubmed.ncbi.nlm.nih.gov/${study.study_id}/`} target='_blank' rel='noopener noreferrer' className='study-pmid'>
-                        {study.study_id}
+                <div className='study-content'>
+                  <div className='study-title' onClick={() => onStudyClick?.(study)}>
+                    {url ? (
+                      <a href={url} target='_blank' rel='noopener noreferrer' onClick={(e) => e.stopPropagation()}>
+                        {study.title || 'Untitled'}
                       </a>
-                    </>
-                  )}
-                </div>
-
-                {study.abstract && (
-                  <div className='study-abstract'>
-                    {truncateAbstract(study.abstract)}
+                    ) : (
+                      <span style={{ color: '#2563eb', cursor: 'pointer' }}>
+                        {study.title || 'Untitled'}
+                      </span>
+                    )}
                   </div>
-                )}
+                  
+                  <div className='study-meta'>
+                    {study.authors && <span>{study.authors} – </span>}
+                    {study.journal && <span className='study-meta-journal'>{study.journal}. </span>}
+                    {study.year && <span>({study.year})</span>}
+                    {study.study_id && (
+                      <>
+                        <br />
+                        <span>PMID: </span>
+                        <a href={`https://pubmed.ncbi.nlm.nih.gov/${study.study_id}/`} target='_blank' rel='noopener noreferrer' className='study-pmid' onClick={(e) => e.stopPropagation()}>
+                          {study.study_id}
+                        </a>
+                      </>
+                    )}
+                  </div>
 
-                <div className='study-tags'>
-                  {study.study_id && <span className='study-tag pmid-tag'>PMID: {study.study_id}</span>}
-                  {study.contrast_id && <span className='study-tag'>Contrast: {study.contrast_id}</span>}
+                  {study.abstract && (
+                    <div className='study-abstract'>
+                      {truncateAbstract(study.abstract)}
+                    </div>
+                  )}
+
+                  <div className='study-tags'>
+                    {isSelected && <span className='study-tag selected-tag'>✓ Selected</span>}
+                    {study.study_id && <span className='study-tag pmid-tag'>PMID: {study.study_id}</span>}
+                    {study.contrast_id && <span className='study-tag'>Contrast: {study.contrast_id}</span>}
+                  </div>
                 </div>
               </div>
             )
@@ -326,10 +414,10 @@ export function Studies ({ query }) {
             Page <b>{page}</b> of <b>{totalPages}</b> ({sorted.length} total)
           </div>
           <div className='studies-footer-pages'>
-            <button disabled={page <= 1} onClick={() => setPage(1)}>⮜</button>
+            <button disabled={page <= 1} onClick={() => setPage(1)}>⏮</button>
             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>‹ Prev</button>
             <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next ›</button>
-            <button disabled={page >= totalPages} onClick={() => setPage(totalPages)}>⮞</button>
+            <button disabled={page >= totalPages} onClick={() => setPage(totalPages)}>⏭</button>
           </div>
         </div>
       )}
