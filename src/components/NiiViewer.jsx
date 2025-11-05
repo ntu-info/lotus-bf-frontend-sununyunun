@@ -371,23 +371,31 @@ export function NiiViewer({ query }) {
           display: grid;
           grid-template-columns: 1fr 1fr;
           grid-template-rows: 1fr 1fr;
-          gap: 16px;
+          gap: 20px;
           flex: 1;
           min-height: 0;
-          padding: 4px;
+          padding: 8px;
         }
         .nii-quad-item {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 10px;
           min-height: 0;
+          background: var(--gray-50);
+          border-radius: 8px;
+          padding: 12px;
         }
         .nii-quad-label {
-          font-size: 12px;
-          color: var(--gray-600);
+          font-size: 13px;
+          color: var(--gray-700);
           font-weight: 600;
-          padding: 0 4px;
+          padding: 0;
           flex-shrink: 0;
+          text-align: center;
+          background: white;
+          padding: 6px 12px;
+          border-radius: 6px;
+          border: 1px solid var(--gray-200);
         }
         .nii-quad-canvas {
           width: 100%;
@@ -399,19 +407,33 @@ export function NiiViewer({ query }) {
           background: #000;
         }
         .nii-controls-panel {
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
+          background: white;
+          border: 1px solid var(--gray-200);
           border-radius: 8px;
-          padding: 12px;
+          padding: 16px;
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 16px;
           overflow-y: auto;
+          flex: 1;
+          min-height: 0;
         }
         .control-group {
           display: flex;
           flex-direction: column;
-          gap: 6px;
+          gap: 8px;
+        }
+        .control-group-title {
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--gray-700);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .control-divider {
+          height: 1px;
+          background: var(--gray-200);
+          margin: 8px 0;
         }
         .control-row {
           display: flex;
@@ -469,6 +491,45 @@ export function NiiViewer({ query }) {
             <div className='nii-quad-item'>
               <div className='nii-quad-label'>Controls</div>
               <div className='nii-controls-panel'>
+                {/* Coordinates */}
+                <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px' }} className='control-group'>
+                  <div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '6px' }}>Coordinates (mm)</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '11px', color: '#6b7280' }}>X</span>
+                      <input
+                        type='text' inputMode='decimal'
+                        className={nsInputCls}
+                        value={cx}
+                        onChange={e=>setCx(e.target.value)}
+                        onBlur={()=>commitCoord('x')}
+                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('x') } }}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '11px', color: '#6b7280' }}>Y</span>
+                      <input
+                        type='text' inputMode='decimal'
+                        className={nsInputCls}
+                        value={cy}
+                        onChange={e=>setCy(e.target.value)}
+                        onBlur={()=>commitCoord('y')}
+                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('y') } }}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '11px', color: '#6b7280' }}>Z</span>
+                      <input
+                        type='text' inputMode='decimal'
+                        className={nsInputCls}
+                        value={cz}
+                        onChange={e=>setCz(e.target.value)}
+                        onBlur={()=>commitCoord('z')}
+                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('z') } }}
+                      />
+                    </label>
+                  </div>
+                </div>
                 {/* Overlay Alpha */}
                 <div className='control-group'>
                   <label className={nsLabelCls}>Overlay Alpha: {overlayAlpha.toFixed(2)}</label>
@@ -522,45 +583,7 @@ export function NiiViewer({ query }) {
                   </div>
                 )}
 
-                {/* Coordinates */}
-                <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px' }} className='control-group'>
-                  <div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '6px' }}>Coordinates (mm)</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#6b7280' }}>X</span>
-                      <input
-                        type='text' inputMode='decimal'
-                        className={nsInputCls}
-                        value={cx}
-                        onChange={e=>setCx(e.target.value)}
-                        onBlur={()=>commitCoord('x')}
-                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('x') } }}
-                      />
-                    </label>
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#6b7280' }}>Y</span>
-                      <input
-                        type='text' inputMode='decimal'
-                        className={nsInputCls}
-                        value={cy}
-                        onChange={e=>setCy(e.target.value)}
-                        onBlur={()=>commitCoord('y')}
-                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('y') } }}
-                      />
-                    </label>
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#6b7280' }}>Z</span>
-                      <input
-                        type='text' inputMode='decimal'
-                        className={nsInputCls}
-                        value={cz}
-                        onChange={e=>setCz(e.target.value)}
-                        onBlur={()=>commitCoord('z')}
-                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('z') } }}
-                      />
-                    </label>
-                  </div>
-                </div>
+                
 
                 {query && (
                   <a href={mapUrl} download style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'none', textAlign: 'center', padding: '6px', border: '1px solid #e5e7eb', borderRadius: '6px', background: 'white' }} onMouseEnter={e=>e.target.style.background='#f9fafb'} onMouseLeave={e=>e.target.style.background='white'}>
