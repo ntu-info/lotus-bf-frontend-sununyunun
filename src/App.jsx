@@ -1,5 +1,4 @@
-
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Terms } from './components/Terms'
 import { QueryBuilder } from './components/QueryBuilder'
 import { Studies } from './components/Studies'
@@ -14,70 +13,161 @@ export default function App () {
     setQuery((q) => (q ? `${q} ${t}` : t))
   }, [setQuery])
 
-  // --- resizable panes state ---
-  const gridRef = useRef(null)
-  const [sizes, setSizes] = useState([28, 44, 28]) // [left, middle, right]
-  const MIN_PX = 240
+  // Card collapse states
+  const [studiesOpen, setStudiesOpen] = useState(true)
+  const [niiOpen, setNiiOpen] = useState(true)
 
-  const startDrag = (which, e) => {
-    e.preventDefault()
-    const startX = e.clientX
-    const rect = gridRef.current.getBoundingClientRect()
-    const total = rect.width
-    const curPx = sizes.map(p => (p / 100) * total)
-
-    const onMouseMove = (ev) => {
-      const dx = ev.clientX - startX
-      if (which === 0) {
-        let newLeft = curPx[0] + dx
-        let newMid = curPx[1] - dx
-        if (newLeft < MIN_PX) { newMid -= (MIN_PX - newLeft); newLeft = MIN_PX }
-        if (newMid < MIN_PX) { newLeft -= (MIN_PX - newMid); newMid = MIN_PX }
-        const s0 = (newLeft / total) * 100
-        const s1 = (newMid / total) * 100
-        const s2 = 100 - s0 - s1
-        setSizes([s0, s1, Math.max(s2, 0)])
-      } else {
-        let newMid = curPx[1] + dx
-        let newRight = curPx[2] - dx
-        if (newMid < MIN_PX) { newRight -= (MIN_PX - newMid); newMid = MIN_PX }
-        if (newRight < MIN_PX) { newMid -= (MIN_PX - newRight); newRight = MIN_PX }
-        const s1 = (newMid / total) * 100
-        const s2 = (newRight / total) * 100
-        const s0 = (curPx[0] / total) * 100
-        setSizes([s0, s1, Math.max(s2, 0)])
-      }
-    }
-    const onMouseUp = () => {
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-    }
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-  }
+  // Both open = side by side layout
+  const bothOpen = studiesOpen && niiOpen
 
   return (
-    <div className="app">
-      {/* Inline style injection to enforce no-hover look */}
+    <div className="app dashboard-layout">
+      {/* Inline style injection */}
       <style>{`
         :root {
           --primary-600: #2563eb;
-          --primary-700: #1d4ed8;
-          --primary-800: #1e40af;
           --border: #e5e7eb;
         }
-        .app { padding-right: 0 !important; }
-        .app__grid { width: 100vw; max-width: 100vw; }
-        .card input[type="text"],
-        .card input[type="search"],
-        .card input[type="number"],
-        .card select,
-        .card textarea {
-          width: 100% !important;
-          max-width: 100% !important;
+        .dashboard-layout {
+          padding: 18px !important;
+          max-width: 100vw;
+          height: 100vh;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        .dashboard-header {
+          margin-bottom: 18px;
+          flex-shrink: 0;
+        }
+        .dashboard-search-bar {
+          background: white;
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          padding: 16px;
+          margin-bottom: 18px;
+          flex-shrink: 0;
+        }
+        .dashboard-grid {
+          display: grid;
+          grid-template-columns: 250px 1fr;
+          gap: 18px;
+          align-items: start;
+          flex: 1;
+          min-height: 0;
+          overflow: hidden;
+        }
+        .dashboard-left {
+          height: 100%;
+          overflow: auto;
+        }
+        .dashboard-right {
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+          height: 100%;
+          overflow: hidden;
+        }
+        .dashboard-right.split-layout {
+          flex-direction: row;
+          gap: 18px;
+        }
+        .dashboard-right.split-layout > .collapsible-card {
+          flex: 1;
+          min-width: 0;
+          height: 100%;
+        }
+        .collapsible-card {
+          background: white;
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          overflow: hidden;
+          transition: all 0.3s ease;
+          display: flex;
+          flex-direction: column;
+        }
+        .collapsible-card.full-height {
+          flex: 1;
+          min-height: 0;
+        }
+        .collapsible-card__header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          cursor: pointer;
+          user-select: none;
+          border-bottom: 1px solid var(--border);
+          background: #fafafa;
+          flex-shrink: 0;
+        }
+        .collapsible-card__header:hover {
+          background: #f3f4f6;
+        }
+        .collapsible-card__title {
+          font-weight: 600;
+          font-size: 15px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .collapsible-card__toggle {
+          font-size: 18px;
+          color: #6b7280;
+          transition: transform 0.3s ease;
+        }
+        .collapsible-card__toggle.open {
+          transform: rotate(180deg);
+        }
+        .collapsible-card__content {
+          display: none;
+          overflow: auto;
+          flex: 1;
+          min-height: 0;
+        }
+        .collapsible-card__content.open {
           display: block;
         }
-        /* Downsized buttons */
+        .collapsible-card__body {
+          padding: 0;
+          height: 100%;
+        }
+        .card-icon {
+          font-size: 16px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1023px) {
+          .dashboard-layout {
+            height: auto;
+            overflow: auto;
+          }
+          .dashboard-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+            height: auto;
+            overflow: visible;
+          }
+          .dashboard-left {
+            height: auto;
+          }
+          .dashboard-right {
+            height: auto;
+            overflow: visible;
+          }
+          .dashboard-right.split-layout {
+            flex-direction: column;
+          }
+          .collapsible-card.full-height {
+            flex: none;
+            min-height: 400px;
+          }
+          .dashboard-layout {
+            padding: 12px !important;
+          }
+        }
+        
+        /* Override button styles */
         .card button,
         .card [role="button"],
         .card .btn,
@@ -90,55 +180,14 @@ export default function App () {
           color: #fff !important;
           border: none !important;
         }
-        /* No visual change on hover/active */
         .card button:hover,
         .card button:active,
         .card [role="button"]:hover,
-        .card [role="button"]:active,
-        .card .btn:hover,
-        .card .btn:active,
-        .card .button:hover,
-        .card .button:active {
+        .card [role="button"]:active {
           background: var(--primary-600) !important;
           color: #fff !important;
         }
-        /* Toolbars / chips also no-hover */
-        .card .toolbar button,
-        .card .toolbar [role="button"],
-        .card .toolbar .btn,
-        .card .toolbar .button,
-        .card .qb-toolbar button,
-        .card .qb-toolbar [role="button"],
-        .card .qb-toolbar .btn,
-        .card .qb-toolbar .button,
-        .card .query-builder button,
-        .card .query-builder [role="button"],
-        .card .query-builder .btn,
-        .card .query-builder .button,
-        .card .chip,
-        .card .pill,
-        .card .tag {
-          background: var(--primary-600) !important;
-          color: #fff !important;
-          border: none !important;
-        }
-        .card .toolbar button:hover,
-        .card .qb-toolbar button:hover,
-        .card .query-builder button:hover,
-        .card .chip:hover,
-        .card .pill:hover,
-        .card .tag:hover,
-        .card .toolbar button:active,
-        .card .qb-toolbar button:active,
-        .card .query-builder button:active {
-          background: var(--primary-600) !important;
-          color: #fff !important;
-        }
-        /* Disabled stays same color but dimmer for affordance */
-        .card .toolbar button:disabled,
-        .card .qb-toolbar button:disabled,
-        .card .query-builder button:disabled,
-        .card button[disabled],
+        .card button:disabled,
         .card [aria-disabled="true"] {
           background: var(--primary-600) !important;
           color: #fff !important;
@@ -146,32 +195,72 @@ export default function App () {
         }
       `}</style>
 
-      <header className="app__header">
+      {/* Header */}
+      <header className="dashboard-header">
         <h1 className="app__title">LoTUS-BF</h1>
         <div className="app__subtitle">Location-or-Term Unified Search for Brain Functions</div>
       </header>
 
-      <main className="app__grid" ref={gridRef}>
-        <section className="card" style={{ flexBasis: `${sizes[0]}%` }}>
-          <div className="card__title">Terms</div>
-          <Terms onPickTerm={handlePickTerm} />
-        </section>
+      {/* Search Bar */}
+      <div className="dashboard-search-bar">
+        <QueryBuilder query={query} setQuery={setQuery} />
+      </div>
 
-        <div className="resizer" aria-label="Resize left/middle" onMouseDown={(e) => startDrag(0, e)} />
+      {/* Dashboard Grid */}
+      <div className="dashboard-grid">
+        {/* Left: Terms Card (Fixed) */}
+        <aside className="dashboard-left">
+          <div className="card" style={{ padding: '12px' }}>
+            <div className="card__title" style={{ marginBottom: '10px' }}>Terms</div>
+            <Terms onPickTerm={handlePickTerm} />
+          </div>
+        </aside>
 
-        <section className="card card--stack" style={{ flexBasis: `${sizes[1]}%` }}>
-          <QueryBuilder query={query} setQuery={setQuery} />
-          {/* <div className="hint">Current Query：<code className="hint__code">{query || '(empty)'}</code></div> */}
-          <div className="divider" />
-          <Studies query={query} />
-        </section>
+        {/* Right: Collapsible Cards */}
+        <main className={`dashboard-right ${bothOpen ? 'split-layout' : ''}`}>
+          {/* Studies Card */}
+          <div className={`collapsible-card ${studiesOpen ? 'full-height' : ''}`}>
+            <div 
+              className="collapsible-card__header"
+              onClick={() => setStudiesOpen(!studiesOpen)}
+            >
+              <div className="collapsible-card__title">
+                <span className="card-icon">📊</span>
+                Studies
+              </div>
+              <span className={`collapsible-card__toggle ${studiesOpen ? 'open' : ''}`}>
+                ▼
+              </span>
+            </div>
+            <div className={`collapsible-card__content ${studiesOpen ? 'open' : ''}`}>
+              <div className="collapsible-card__body">
+                <Studies query={query} />
+              </div>
+            </div>
+          </div>
 
-        <div className="resizer" aria-label="Resize middle/right" onMouseDown={(e) => startDrag(1, e)} />
-
-        <section className="card" style={{ flexBasis: `${sizes[2]}%` }}>
-          <NiiViewer query={query} />
-        </section>
-      </main>
+          {/* Brain Visualization Card */}
+          <div className={`collapsible-card ${niiOpen ? 'full-height' : ''}`}>
+            <div 
+              className="collapsible-card__header"
+              onClick={() => setNiiOpen(!niiOpen)}
+            >
+              <div className="collapsible-card__title">
+                <span className="card-icon">🧠</span>
+                Brain Visualization
+              </div>
+              <span className={`collapsible-card__toggle ${niiOpen ? 'open' : ''}`}>
+                ▼
+              </span>
+            </div>
+            <div className={`collapsible-card__content ${niiOpen ? 'open' : ''}`}>
+              <div className="collapsible-card__body" style={{ padding: '12px' }}>
+                <NiiViewer query={query} />
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   )
 }

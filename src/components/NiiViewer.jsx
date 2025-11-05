@@ -1,10 +1,9 @@
-
-// 顯示設定：讓 x>0 出現在畫面右側（右腦在右）
+// 顯示設定:讓 x>0 出現在畫面右側(右腦在右)
 const X_RIGHT_ON_SCREEN_RIGHT = true;
 
+import { API_BASE } from '../api'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as nifti from 'nifti-reader-js'
-import { API_BASE } from '../api'
 
 const MNI_BG_URL = 'static/mni_2mm.nii.gz'
 
@@ -15,7 +14,6 @@ function isStandardMNI2mm(dims, voxelMM) {
   return okDims && okSp;
 }
 // Standard MNI152 2mm affine (voxel i,j,k -> MNI mm):
-// x = -2*i + 90;  y = 2*j - 126;  z = 2*k - 72
 const MNI2MM = { x0: 90, y0: -126, z0: -72, vx: 2, vy: 2, vz: 2 };
 
 export function NiiViewer({ query }) {
@@ -34,25 +32,25 @@ export function NiiViewer({ query }) {
   const [overlayAlpha, setOverlayAlpha] = useState(0.5)
   const [posOnly, setPosOnly] = useState(true)
   const [useAbs, setUseAbs] = useState(false)
-  const [thrMode, setThrMode] = useState('pctl') // default: Percentile (per request)
+  const [thrMode, setThrMode] = useState('pctl')
   const [pctl, setPctl] = useState(95)
-  const [thrValue, setThrValue] = useState(0)     // used when mode === 'value'
+  const [thrValue, setThrValue] = useState(0)
 
   // volumes
-  const bgRef  = useRef(null)   // { data, dims:[nx,ny,nz], voxelMM:[vx,vy,vz], min, max }
-  const mapRef = useRef(null)   // { data, dims:[nx,ny,nz], voxelMM:[vx,vy,vz], min, max }
+  const bgRef  = useRef(null)
+  const mapRef = useRef(null)
   const getVoxelMM = () => {
     const vm = bgRef.current?.voxelMM ?? mapRef.current?.voxelMM ?? [1,1,1]
     return { x: vm[0], y: vm[1], z: vm[2] }
   }
-  const [dims, setDims] = useState([0,0,0]) // canvas dims (prefer BG; overlay only if same dims)
+  const [dims, setDims] = useState([0,0,0])
 
-  // slice indices (voxel coordinates in [0..N-1])
-  const [ix, setIx] = useState(0) // sagittal (X)
-  const [iy, setIy] = useState(0) // coronal  (Y)
-  const [iz, setIz] = useState(0) // axial    (Z)
+  // slice indices
+  const [ix, setIx] = useState(0)
+  const [iy, setIy] = useState(0)
+  const [iz, setIz] = useState(0)
 
-  // Neurosynth-style displayed coords: signed, centered at middle voxel
+  // displayed coords
   const [cx, setCx] = useState('0')
   const [cy, setCy] = useState('0')
   const [cz, setCz] = useState('0')
@@ -69,7 +67,7 @@ export function NiiViewer({ query }) {
     return u.toString()
   }, [query, voxel, fwhm, kernel, r])
 
-  // ---------- utils ----------
+  // utils
   function asTypedArray (header, buffer) {
     switch (header.datatypeCode) {
       case nifti.NIFTI1.TYPE_INT8:    return new Int8Array(buffer)
@@ -134,12 +132,7 @@ export function NiiViewer({ query }) {
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 
-  // helpers: convert between index [0..N-1] and neurosynth-style signed coord centered at mid voxel
-  // Display conventions to match Neurosynth-like UI:
-  //  - X: right-positive
-  //  - Y: anterior-positive (but screen vertical is flipped), so invert sign
-  //  - Z: superior-positive (also vertical), invert sign
-  const AXIS_SIGN = { x: -1, y: 1, z: 1 } // X is neg for index<->coord mapping only when not using standard MNI affine
+  const AXIS_SIGN = { x: -1, y: 1, z: 1 }
   const idx2coord = (i, n, axis) => {
     const [nx, ny, nz] = dims;
     const { x: vx, y: vy, z: vz } = getVoxelMM();
@@ -152,7 +145,7 @@ export function NiiViewer({ query }) {
     const mmPerVoxel = axis === 'x' ? vx : axis === 'y' ? vy : vz;
     return AXIS_SIGN[axis] * (i - Math.floor(n/2)) * mmPerVoxel;
   }
-const coord2idx = (c_mm, n, axis) => {
+  const coord2idx = (c_mm, n, axis) => {
     const [nx, ny, nz] = dims;
     const { x: vx, y: vy, z: vz } = getVoxelMM();
     const isStd = isStandardMNI2mm([nx, ny, nz], [vx, vy, vz]);
@@ -170,6 +163,7 @@ const coord2idx = (c_mm, n, axis) => {
     const idx = Math.round(v);
     return Math.max(0, Math.min(n-1, idx));
   }
+
   // load background on mount
   useEffect(() => {
     let alive = true
@@ -179,7 +173,6 @@ const coord2idx = (c_mm, n, axis) => {
         const bg = await loadNifti(MNI_BG_URL)
         if (!alive) return
         bgRef.current = bg
-        // Always prefer BG dims for the canvas
         setDims(bg.dims)
         const [nx,ny,nz] = bg.dims
         const mx = Math.floor(nx/2), my = Math.floor(ny/2), mz = Math.floor(nz/2)
@@ -197,8 +190,6 @@ const coord2idx = (c_mm, n, axis) => {
     return () => { alive = false }
   }, [])
 
-  
-  // keep thrValue within current map range when map changes
   useEffect(() => {
     const mn = mapRef.current?.min ?? 0
     const mx = mapRef.current?.max ?? 1
@@ -207,7 +198,6 @@ const coord2idx = (c_mm, n, axis) => {
     }
   }, [mapRef.current, dims])
 
-// load meta-analytic map when query/params change
   useEffect(() => {
     if (!mapUrl) { mapRef.current = null; return }
     let alive = true
@@ -243,11 +233,8 @@ const coord2idx = (c_mm, n, axis) => {
     return percentile(mv.data, Math.max(0, Math.min(100, Number(pctl) || 95)))
   }, [thrMode, thrValue, pctl, mapRef.current])
 
-  // draw one slice (upright orientation via vertical flip)
-  function drawSlice (canvas, axis /* 'z' | 'y' | 'x' */, index) {
+  function drawSlice (canvas, axis, index) {
     const [nx, ny, nz] = dims
-    
-    // 若要讓 x>0 出現在畫面右側，就在取樣時把 X 軸做水平翻轉
     const sx = (x) => (X_RIGHT_ON_SCREEN_RIGHT ? (nx - 1 - x) : x);
     const bg  = bgRef.current
     const map = mapRef.current
@@ -269,16 +256,14 @@ const coord2idx = (c_mm, n, axis) => {
     const R = 255, G = 0, B = 0
     const thr = mapThreshold
 
-    // background normalization based on its own min/max
     const bgMin = bg?.min ?? 0
     const bgMax = bg?.max ?? 1
     const bgRange = (bgMax - bgMin) || 1
 
     let p = 0
     for (let yy=0; yy<h; yy++) {
-      const srcY = h - 1 - yy // flip vertically
+      const srcY = h - 1 - yy
       for (let xx=0; xx<w; xx++) {
-        // draw background
         let gray = 0
         if (getBG) {
           const vbg = getBG(xx, srcY)
@@ -292,7 +277,6 @@ const coord2idx = (c_mm, n, axis) => {
         img.data[p + 2] = gray
         img.data[p + 3] = 255
 
-        // overlay map
         if (getMap) {
           let mv = getMap(xx, srcY)
           const raw = mv
@@ -310,36 +294,32 @@ const coord2idx = (c_mm, n, axis) => {
     }
     ctx.putImageData(img, 0, 0)
 
-    // draw green crosshairs
     ctx.save()
     ctx.strokeStyle = '#00ff00'
     ctx.lineWidth = 1
     let cx = 0, cy = 0
-    if (axis === 'z') { // plane: X by Y
+    if (axis === 'z') {
       cx = Math.max(0, Math.min(w-1, (X_RIGHT_ON_SCREEN_RIGHT ? (w - 1 - ix) : ix)))
       cy = Math.max(0, Math.min(h-1, iy))
-    } else if (axis === 'y') { // plane: X by Z
+    } else if (axis === 'y') {
       cx = Math.max(0, Math.min(w-1, (X_RIGHT_ON_SCREEN_RIGHT ? (w - 1 - ix) : ix)))
       cy = Math.max(0, Math.min(h-1, iz))
-    } else { // axis === 'x' (plane: Y by Z)
+    } else {
       cx = Math.max(0, Math.min(w-1, iy))
       cy = Math.max(0, Math.min(h-1, iz))
     }
-    const screenY = h - 1 - cy // account for vertical flip used when drawing
-    // vertical line
+    const screenY = h - 1 - cy
     ctx.beginPath(); ctx.moveTo(cx + 0.5, 0); ctx.lineTo(cx + 0.5, h); ctx.stroke()
-    // horizontal line
     ctx.beginPath(); ctx.moveTo(0, screenY + 0.5); ctx.lineTo(w, screenY + 0.5); ctx.stroke()
     ctx.restore()
   }
 
-  // click-to-move crosshairs
   function onCanvasClick (e, axis) {
     const canvas = e.currentTarget
     const rect = canvas.getBoundingClientRect()
     const x = Math.floor((e.clientX - rect.left) * canvas.width / rect.width)
     const y = Math.floor((e.clientY - rect.top) * canvas.height / rect.height)
-    const srcY = canvas.height - 1 - y // invert because we draw with vertical flip
+    const srcY = canvas.height - 1 - y
     const [nx,ny,nz] = dims
     
     const toIdxX = (screenX) => (X_RIGHT_ON_SCREEN_RIGHT ? (nx - 1 - screenX) : screenX);
@@ -348,7 +328,6 @@ const coord2idx = (c_mm, n, axis) => {
     else { setIy(x); setIz(srcY); setCy(String(idx2coord(x, ny, 'y'))); setCz(String(idx2coord(srcY, nz, 'z'))) }
   }
 
-  // keep display coords in sync when ix/iy/iz/dims change (e.g., after loads)
   useEffect(() => {
     const [nx,ny,nz] = dims
     if (!nx) return
@@ -357,11 +336,9 @@ const coord2idx = (c_mm, n, axis) => {
     setCz(String(idx2coord(iz, nz, 'z')))
   }, [ix,iy,iz,dims])
 
-  // commit handlers: parse signed integer, map to index, clamp to volume
   const commitCoord = (axis) => {
     const [nx,ny,nz] = dims
     let vStr = axis==='x' ? cx : axis==='y' ? cy : cz
-    // allow empty / '-' temporary states
     if (vStr === '' || vStr === '-' ) return
     const parsed = parseFloat(vStr)
     if (Number.isNaN(parsed)) return
@@ -370,7 +347,6 @@ const coord2idx = (c_mm, n, axis) => {
     if (axis==='z') setIz(coord2idx(parsed, nz, 'z'))
   }
 
-  // redraw on state changes
   useEffect(() => {
     const [nx, ny, nz] = dims
     if (!nx) return
@@ -378,7 +354,6 @@ const coord2idx = (c_mm, n, axis) => {
     if (c0 && iz >=0 && iz < nz) drawSlice(c0, 'z', iz)
     if (c1 && iy >=0 && iy < ny) drawSlice(c1, 'y', iy)
     if (c2 && ix >=0 && ix < nx) drawSlice(c2, 'x', ix)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     dims, ix, iy, iz,
     overlayAlpha, posOnly, useAbs, thrMode, pctl, thrValue,
@@ -386,140 +361,209 @@ const coord2idx = (c_mm, n, axis) => {
   ])
 
   const [nx, ny, nz] = dims
-
-  // slice configs (labels only; numbers removed)
-  const sliceConfigs = [
-    { key: 'y', name: 'Coronal',  axisLabel: 'Y', index: iy, setIndex: setIy, max: Math.max(0, ny-1), canvasRef: canvases[1] },
-    { key: 'x', name: 'Sagittal', axisLabel: 'X', index: ix, setIndex: setIx, max: Math.max(0, nx-1), canvasRef: canvases[2] },
-    { key: 'z', name: 'Axial',    axisLabel: 'Z', index: iz, setIndex: setIz, max: Math.max(0, nz-1), canvasRef: canvases[0] },
-  ]
-
-  // shared small input styles to mimic Neurosynth (compact bordered boxes)
-  const nsInputCls = 'w-16 rounded border border-gray-400 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400'
-  const nsLabelCls = 'mr-1 text-sm'
+  const nsInputCls = 'w-full rounded border border-gray-400 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400'
+  const nsLabelCls = 'text-sm font-medium'
 
   return (
-    <div className='flex flex-col gap-3'>
-      <div className='flex items-center justify-between'>
-        <div className='card__title'>NIfTI Viewer</div>
-        <div className='flex items-center gap-2 text-sm text-gray-500'>
-          {query && <a href={mapUrl} className='rounded-lg border px-2 py-1 text-xs hover:bg-gray-50'>Download map</a>}
-        </div>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%' }}>
+      <style>{`
+        .nii-quad-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          grid-template-rows: 1fr 1fr;
+          gap: 12px;
+          flex: 1;
+          min-height: 0;
+        }
+        .nii-quad-item {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          min-height: 0;
+        }
+        .nii-quad-canvas {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          cursor: crosshair;
+          background: #000;
+        }
+        .nii-controls-panel {
+          background: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          overflow-y: auto;
+        }
+        .control-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .control-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          justify-content: space-between;
+        }
+        .slider-container {
+          flex: 1;
+        }
+        input[type="range"] {
+          width: 100%;
+        }
+        input[type="checkbox"] {
+          width: 16px;
+          height: 16px;
+        }
+      `}</style>
 
-      {/* --- Threshold mode & value --- */}
-      <div className='rounded-xl border p-3 text-sm'>
-        <label className='flex items-center gap-2'>
-          <span>Threshold mode</span>
-          <select value={thrMode} onChange={e=>setThrMode(e.target.value)} className='rounded-lg border px-2 py-1'>
-            <option value='value'>Value</option>
-            <option value='pctl'>Percentile</option>
-          </select>
-        </label>
-        <br />
-        {thrMode === 'value' ? (
-          <>
-            <label className='flex items-center gap-2'>
-              <span>Threshold</span>
-              <input type='number' step='0.01' value={thrValue} onChange={e=>setThrValue(Number(e.target.value))} className='w-28 rounded-lg border px-2 py-1' />
-            </label>
-            <br />
-          </>
-        ) : (
-          <>
-            <label className='flex items-center gap-2'>
-              <span>Percentile</span>
-              <input type='number' min={50} max={99.9} step={0.5} value={pctl} onChange={e=>setPctl(Number(e.target.value)||95)} className='w-24 rounded-lg border px-2 py-1' />
-            </label>
-            <br />
-          </>
-        )}
-
-        {/* Neurosynth-style coordinate inputs (signed, centered at 0) */}
-        <div className='mt-1 flex items-center gap-4'>
-          <label className='flex items-center'>
-            <span className={nsLabelCls}>X (mm):</span>
-            <input
-              type='text' inputMode='decimal' pattern='-?[0-9]*([.][0-9]+)?'
-              className={nsInputCls}
-              value={cx}
-              onChange={e=>setCx(e.target.value)}
-              onBlur={()=>commitCoord('x')}
-              onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('x') } }}
-              aria-label='X coordinate (centered)'
-            />
-          </label>
-          <label className='flex items-center'>
-            <span className={nsLabelCls}>Y (mm):</span>
-            <input
-              type='text' inputMode='decimal' pattern='-?[0-9]*([.][0-9]+)?'
-              className={nsInputCls}
-              value={cy}
-              onChange={e=>setCy(e.target.value)}
-              onBlur={()=>commitCoord('y')}
-              onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('y') } }}
-              aria-label='Y coordinate (centered)'
-            />
-          </label>
-          <label className='flex items-center'>
-            <span className={nsLabelCls}>Z (mm):</span>
-            <input
-              type='text' inputMode='decimal' pattern='-?[0-9]*([.][0-9]+)?'
-              className={nsInputCls}
-              value={cz}
-              onChange={e=>setCz(e.target.value)}
-              onBlur={()=>commitCoord('z')}
-              onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('z') } }}
-              aria-label='Z coordinate (centered)'
-            />
-          </label>
-        </div>
-      </div>
-
-      {/* --- Brain views --- */}
       {(loadingBG || loadingMap) && (
-        <div className='grid gap-3 lg:grid-cols-3'>
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className='h-64 animate-pulse rounded-xl border bg-gray-100' />
-          ))}
+        <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>
+          Loading brain data...
         </div>
       )}
+
       {(errBG || errMap) && (
-        <div className='rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800'>
+        <div style={{ padding: '12px', background: '#fefce8', border: '1px solid #fef08a', borderRadius: '8px', fontSize: '13px', color: '#854d0e' }}>
           {errBG && <div>Background: {errBG}</div>}
           {errMap && <div>Map: {errMap}</div>}
         </div>
       )}
 
       {!!nx && (
-        <div className='grid grid-cols-3 gap-3' style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
-          {sliceConfigs.map(({ key, name, axisLabel, index, setIndex, max, canvasRef }) => (
-            <div key={key} className='flex flex-col gap-2'>
-              <div className='text-xs text-gray-600'>{name} ({axisLabel})</div>
-              <div className='flex items-center gap-2'>
-                <canvas ref={canvasRef} className='h-64 w-full rounded-xl border' onClick={(e)=>onCanvasClick(e, key)} style={{ cursor: 'crosshair' }} />
+        <>
+          <div className='nii-quad-grid'>
+            {/* Top-left: Sagittal */}
+            <div className='nii-quad-item'>
+              <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>Sagittal (X)</div>
+              <canvas ref={canvases[2]} className='nii-quad-canvas' onClick={(e)=>onCanvasClick(e, 'x')} />
+            </div>
+
+            {/* Top-right: Coronal */}
+            <div className='nii-quad-item'>
+              <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>Coronal (Y)</div>
+              <canvas ref={canvases[1]} className='nii-quad-canvas' onClick={(e)=>onCanvasClick(e, 'y')} />
+            </div>
+
+            {/* Bottom-left: Axial */}
+            <div className='nii-quad-item'>
+              <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>Axial (Z)</div>
+              <canvas ref={canvases[0]} className='nii-quad-canvas' onClick={(e)=>onCanvasClick(e, 'z')} />
+            </div>
+
+            {/* Bottom-right: Controls */}
+            <div className='nii-quad-item'>
+              <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '500' }}>Controls</div>
+              <div className='nii-controls-panel'>
+                {/* Overlay Alpha */}
+                <div className='control-group'>
+                  <label className={nsLabelCls}>Overlay Alpha: {overlayAlpha.toFixed(2)}</label>
+                  <input 
+                    type='range' 
+                    min='0' 
+                    max='1' 
+                    step='0.05' 
+                    value={overlayAlpha} 
+                    onChange={e=>setOverlayAlpha(Number(e.target.value))}
+                  />
+                </div>
+
+                {/* Checkboxes */}
+                <div className='control-group'>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                    <input type='checkbox' checked={posOnly} onChange={e=>setPosOnly(e.target.checked)} />
+                    Positive values only
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                    <input type='checkbox' checked={useAbs} onChange={e=>setUseAbs(e.target.checked)} />
+                    Use absolute values
+                  </label>
+                </div>
+
+                {/* Threshold Mode */}
+                <div className='control-group'>
+                  <label className={nsLabelCls}>Threshold mode</label>
+                  <select value={thrMode} onChange={e=>setThrMode(e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}>
+                    <option value='value'>Value</option>
+                    <option value='pctl'>Percentile</option>
+                  </select>
+                </div>
+
+                {thrMode === 'value' ? (
+                  <div className='control-group'>
+                    <label className={nsLabelCls}>Threshold</label>
+                    <input type='number' step='0.01' value={thrValue} onChange={e=>setThrValue(Number(e.target.value))} className={nsInputCls} />
+                  </div>
+                ) : (
+                  <div className='control-group'>
+                    <label className={nsLabelCls}>Percentile: {pctl}%</label>
+                    <input 
+                      type='range' 
+                      min='50' 
+                      max='99.9' 
+                      step='0.5' 
+                      value={pctl} 
+                      onChange={e=>setPctl(Number(e.target.value)||95)}
+                    />
+                  </div>
+                )}
+
+                {/* Coordinates */}
+                <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px' }} className='control-group'>
+                  <div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '6px' }}>Coordinates (mm)</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '11px', color: '#6b7280' }}>X</span>
+                      <input
+                        type='text' inputMode='decimal'
+                        className={nsInputCls}
+                        value={cx}
+                        onChange={e=>setCx(e.target.value)}
+                        onBlur={()=>commitCoord('x')}
+                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('x') } }}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '11px', color: '#6b7280' }}>Y</span>
+                      <input
+                        type='text' inputMode='decimal'
+                        className={nsInputCls}
+                        value={cy}
+                        onChange={e=>setCy(e.target.value)}
+                        onBlur={()=>commitCoord('y')}
+                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('y') } }}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontSize: '11px', color: '#6b7280' }}>Z</span>
+                      <input
+                        type='text' inputMode='decimal'
+                        className={nsInputCls}
+                        value={cz}
+                        onChange={e=>setCz(e.target.value)}
+                        onBlur={()=>commitCoord('z')}
+                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('z') } }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {query && (
+                  <a href={mapUrl} download style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'none', textAlign: 'center', padding: '6px', border: '1px solid #e5e7eb', borderRadius: '6px', background: 'white' }} onMouseEnter={e=>e.target.style.background='#f9fafb'} onMouseLeave={e=>e.target.style.background='white'}>
+                    📥 Download NIfTI Map
+                  </a>
+                )}
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        </>
       )}
-
-      {/* map generation params */}
-      <div className='rounded-xl border p-3 text-sm'>
-        <label className='flex flex-col'>Gaussian FWHM:
-          <input type='number' step='0.5' value={fwhm} onChange={e=>setFwhm(Number(e.target.value)||0)} className='w-28 rounded-lg border px-2 py-1'/>
-          <br />
-        </label>
-      </div>
-
-      {/* overlay controls */}
-      <div className='rounded-xl border p-3 text-sm'>
-        <label className='flex items-center gap-2'>
-          <span>Overlay alpha</span>
-          <input type='range' min={0} max={1} step={0.05} value={overlayAlpha} onChange={e=>setOverlayAlpha(Number(e.target.value))} className='w-40' />
-        </label>
-        <br />
-      </div>
     </div>
   )
 }
