@@ -42,180 +42,257 @@ export function Terms ({ onPickTerm, highlightedTerms = [] }) {
   }
 
   return (
-    <div className='terms'>
+    <div className='terms-neon'>
       <style>{`
-        .terms { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+        .terms-neon { 
+          display: flex; 
+          flex-direction: column; 
+          gap: 16px; 
+          max-height: 100%;
+        }
+
         
-        .terms__controls {
+        .terms-neon__controls {
           display: flex;
-          gap: 8px;
+          gap: 10px;
           align-items: center;
         }
         
-        .terms__controls .input {
+        .terms-neon__input {
           flex: 1;
-          padding: 6px 10px;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          font-size: 13px;
+          padding: 10px 14px;
+          border: 1px solid rgba(0, 240, 255, 0.3);
+          border-radius: 10px;
+          font-size: 14px;
           outline: none;
+          background: rgba(30, 41, 59, 0.4);
+          backdrop-filter: blur(10px);
+          color: var(--text-primary);
+          transition: all 0.3s;
         }
         
-        .terms__controls .input:focus {
-          box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        .terms-neon__input:focus {
+          border-color: var(--neon-cyan);
+          box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+          background: rgba(0, 240, 255, 0.05);
+        }
+
+        .terms-neon__input::placeholder {
+          color: var(--text-muted);
         }
         
-        .terms__skeleton {
+        .terms-neon__btn {
+          padding: 10px 16px;
+          font-size: 13px;
+          font-weight: 600;
+          border: 1px solid var(--glass-border);
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.05);
+          color: var(--text-secondary);
+          cursor: pointer;
+          transition: all 0.3s;
+        }
+
+        .terms-neon__btn:hover {
+          border-color: var(--neon-cyan);
+          color: var(--neon-cyan);
+          box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+        }
+        
+        .terms-neon__skeleton {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 10px;
         }
         
-        .terms__skeleton-row {
-          height: 32px;
-          background: #f3f4f6;
-          border-radius: 6px;
-          animation: pulse 1.5s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-        
-        .alert {
-          padding: 10px 12px;
+        .terms-neon__skeleton-row {
+          height: 40px;
+          background: linear-gradient(
+            90deg,
+            rgba(30, 41, 59, 0.4) 0%,
+            rgba(0, 240, 255, 0.1) 50%,
+            rgba(30, 41, 59, 0.4) 100%
+          );
+          background-size: 200% 100%;
           border-radius: 8px;
+          animation: neonPulse 2s ease-in-out infinite;
+          border: 1px solid rgba(0, 240, 255, 0.2);
+        }
+        
+        @keyframes neonPulse {
+          0% { background-position: 200% 0; opacity: 0.6; }
+          50% { background-position: -200% 0; opacity: 1; }
+          100% { background-position: 200% 0; opacity: 0.6; }
+        }
+        
+        .terms-neon__alert {
+          padding: 12px 16px;
+          border-radius: 10px;
           font-size: 13px;
+          background: rgba(255, 0, 110, 0.1);
+          border: 1px solid rgba(255, 0, 110, 0.3);
+          color: var(--neon-pink);
+          box-shadow: 0 0 20px rgba(255, 0, 110, 0.3);
         }
         
-        .alert--error {
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-          color: #991b1b;
-        }
-        
-        .terms__list {
+        /* ✅ 限制清單高度與 Studies 對齊，內容可滾動 */
+        .terms-neon__list {
           flex: 1;
           overflow-y: auto;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          background: #fafafa;
+          border: 1px solid rgba(0, 240, 255, 0.2);
+          border-radius: 12px;
+          background: rgba(10, 14, 26, 0.4);
+          backdrop-filter: blur(10px);
+          max-height: 65vh; /* <<< 關鍵：限制與 Studies 高度一致 */
         }
         
-        .terms__empty {
-          padding: 20px;
+        .terms-neon__empty {
+          padding: 40px 20px;
           text-align: center;
-          color: #6b7280;
-          font-size: 13px;
+          color: var(--text-muted);
+          font-size: 14px;
         }
         
-        .terms__ul {
+        .terms-neon__ul {
           list-style: none;
           margin: 0;
           padding: 0;
         }
         
-        .terms__li {
-          border-bottom: 1px solid #e5e7eb;
+        .terms-neon__li {
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
         
-        .terms__li:last-child {
+        .terms-neon__li:last-child {
           border-bottom: none;
         }
         
-        .terms__name {
+        .terms-neon__name {
           display: block;
-          padding: 8px 12px;
-          color: #2563eb;
+          padding: 12px 16px;
+          color: var(--text-secondary);
           text-decoration: none;
-          font-size: 13px;
-          transition: background-color 0.15s ease;
+          font-size: 14px;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           position: relative;
+          cursor: pointer;
+        }
+
+        .terms-neon__name::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 0;
+          background: linear-gradient(90deg, var(--neon-cyan) 0%, transparent 100%);
+          transition: width 0.3s;
         }
         
-        .terms__name:hover {
-          background: white;
-          text-decoration: underline;
+        .terms-neon__name:hover {
+          background: rgba(0, 240, 255, 0.1);
+          color: var(--neon-cyan);
+          padding-left: 20px;
+        }
+
+        .terms-neon__name:hover::before {
+          width: 4px;
         }
         
-        .terms__name.highlighted {
-          background: #fef3c7;
+        .terms-neon__name.highlighted {
+          background: rgba(255, 193, 7, 0.15);
           font-weight: 600;
-          border-left: 3px solid #f59e0b;
-          padding-left: 9px;
+          border-left: 3px solid #fbbf24;
+          padding-left: 16px;
+          color: #fbbf24;
+          box-shadow: inset 0 0 20px rgba(251, 191, 36, 0.2);
         }
         
-        .terms__name.highlighted::before {
+        .terms-neon__name.highlighted::after {
           content: "⭐";
-          margin-right: 6px;
+          margin-left: 8px;
           font-size: 12px;
+          filter: drop-shadow(0 0 8px #fbbf24);
+          animation: starGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes starGlow {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 1; }
+        }
+
+        .terms-neon__name.highlighted:hover {
+          background: rgba(255, 193, 7, 0.25);
+          box-shadow: 
+            inset 0 0 30px rgba(251, 191, 36, 0.3),
+            0 0 20px rgba(251, 191, 36, 0.5);
         }
         
-        .terms__hint {
-          padding: 8px 12px;
+        .terms-neon__hint {
+          padding: 12px 16px;
           font-size: 12px;
-          color: #6b7280;
-          background: #fef3c7;
-          border-bottom: 1px solid #fde68a;
+          color: #854d0e;
+          background: rgba(255, 193, 7, 0.2);
+          border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          backdrop-filter: blur(10px);
+        }
+
+        .terms-neon__hint-icon {
+          filter: drop-shadow(0 0 8px #fbbf24);
         }
       `}</style>
 
-      <div className='terms__controls'>
+      <div className='terms-neon__controls'>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder='Search terms…'
-          className='input'
+          className='terms-neon__input'
         />
         <button
           onClick={() => setSearch('')}
-          className='btn btn--primary'
-          style={{
-            padding: '6px 12px',
-            fontSize: '13px',
-            border: '1px solid #e5e7eb',
-            borderRadius: '6px',
-            background: 'white',
-            cursor: 'pointer'
-          }}
+          className='terms-neon__btn'
         >
           Clear
         </button>
       </div>
 
       {loading && (
-        <div className='terms__skeleton'>
+        <div className='terms-neon__skeleton'>
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className='terms__skeleton-row' />
+            <div key={i} className='terms-neon__skeleton-row' />
           ))}
         </div>
       )}
 
       {err && (
-        <div className='alert alert--error'>
+        <div className='terms-neon__alert'>
           {err}
         </div>
       )}
 
       {!loading && !err && (
-        <div className='terms__list'>
+        <div className='terms-neon__list'>
           {highlightedTerms.length > 0 && (
-            <div className='terms__hint'>
-              ⭐ Highlighted terms appear frequently in selected studies
+            <div className='terms-neon__hint'>
+              <span className='terms-neon__hint-icon'>⭐</span>
+              <span>Highlighted terms appear frequently in selected studies</span>
             </div>
           )}
           {filtered.length === 0 ? (
-            <div className='terms__empty'>No terms found</div>
+            <div className='terms-neon__empty'>No terms found</div>
           ) : (
-            <ul className='terms__ul'>
+            <ul className='terms-neon__ul'>
               {filtered.slice(0, 500).map((t, idx) => {
                 const highlighted = isHighlighted(t)
                 return (
-                  <li key={`${t}-${idx}`} className='terms__li'>
+                  <li key={`${t}-${idx}`} className='terms-neon__li'>
                     <a
                       href="#"
-                      className={`terms__name ${highlighted ? 'highlighted' : ''}`}
+                      className={`terms-neon__name ${highlighted ? 'highlighted' : ''}`}
                       title={t}
                       aria-label={`Add term ${t}`}
                       onClick={(e) => { e.preventDefault(); onPickTerm?.(t); }}

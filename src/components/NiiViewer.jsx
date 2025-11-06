@@ -7,28 +7,24 @@ import * as nifti from 'nifti-reader-js'
 
 const MNI_BG_URL = 'static/mni_2mm.nii.gz'
 
-// Detect MNI152 2mm template dims & spacing (91x109x91, 2mm iso)
 function isStandardMNI2mm(dims, voxelMM) {
   const okDims = Array.isArray(dims) && dims[0]===91 && dims[1]===109 && dims[2]===91;
   const okSp   = voxelMM && Math.abs(voxelMM[0]-2)<1e-3 && Math.abs(voxelMM[1]-2)<1e-3 && Math.abs(voxelMM[2]-2)<1e-3;
   return okDims && okSp;
 }
-// Standard MNI152 2mm affine (voxel i,j,k -> MNI mm):
 const MNI2MM = { x0: 90, y0: -126, z0: -72, vx: 2, vy: 2, vz: 2 };
 
-export function NiiViewer({ query }) {
+export function NiiViewer({ query, selectedStudies = [] }) {
   const [loadingBG, setLoadingBG] = useState(false)
   const [loadingMap, setLoadingMap] = useState(false)
   const [errBG, setErrBG] = useState('')
   const [errMap, setErrMap] = useState('')
 
-  // backend params (map generation)
   const [voxel, setVoxel] = useState(2.0)
   const [fwhm, setFwhm] = useState(10.0)
   const [kernel, setKernel] = useState('gauss')
   const [r, setR] = useState(6.0)
 
-  // overlay controls
   const [overlayAlpha, setOverlayAlpha] = useState(0.5)
   const [posOnly, setPosOnly] = useState(true)
   const [useAbs, setUseAbs] = useState(false)
@@ -36,7 +32,6 @@ export function NiiViewer({ query }) {
   const [pctl, setPctl] = useState(95)
   const [thrValue, setThrValue] = useState(0)
 
-  // volumes
   const bgRef  = useRef(null)
   const mapRef = useRef(null)
   const getVoxelMM = () => {
@@ -45,29 +40,34 @@ export function NiiViewer({ query }) {
   }
   const [dims, setDims] = useState([0,0,0])
 
-  // slice indices
   const [ix, setIx] = useState(0)
   const [iy, setIy] = useState(0)
   const [iz, setIz] = useState(0)
 
-  // displayed coords
   const [cx, setCx] = useState('0')
   const [cy, setCy] = useState('0')
   const [cz, setCz] = useState('0')
 
   const canvases = [useRef(null), useRef(null), useRef(null)]
 
+  const effectiveQuery = useMemo(() => {
+    if (selectedStudies.length > 0) {
+      const ids = selectedStudies.map(s => s.study_id).filter(Boolean)
+      return ids.length > 0 ? ids.join(' OR ') : query
+    }
+    return query
+  }, [query, selectedStudies])
+
   const mapUrl = useMemo(() => {
-    if (!query) return ''
-    const u = new URL(`${API_BASE}/query/${encodeURIComponent(query)}/nii`)
+    if (!effectiveQuery) return ''
+    const u = new URL(`${API_BASE}/query/${encodeURIComponent(effectiveQuery)}/nii`)
     u.searchParams.set('voxel', String(voxel))
     u.searchParams.set('fwhm', String(fwhm))
     u.searchParams.set('kernel', String(kernel))
     u.searchParams.set('r', String(r))
     return u.toString()
-  }, [query, voxel, fwhm, kernel, r])
+  }, [effectiveQuery, voxel, fwhm, kernel, r])
 
-  // utils
   function asTypedArray (header, buffer) {
     switch (header.datatypeCode) {
       case nifti.NIFTI1.TYPE_INT8:    return new Int8Array(buffer)
@@ -130,8 +130,6 @@ export function NiiViewer({ query }) {
     return { data: f32, dims:[nx,ny,nz], voxelMM:[vx,vy,vz], min: mn, max: mx }
   }
 
-  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
-
   const AXIS_SIGN = { x: -1, y: 1, z: 1 }
   const idx2coord = (i, n, axis) => {
     const [nx, ny, nz] = dims;
@@ -164,7 +162,6 @@ export function NiiViewer({ query }) {
     return Math.max(0, Math.min(n-1, idx));
   }
 
-  // load background on mount
   useEffect(() => {
     let alive = true
     setLoadingBG(true); setErrBG('')
@@ -196,7 +193,7 @@ export function NiiViewer({ query }) {
     if (thrValue < mn || thrValue > mx) {
       setThrValue(Math.min(mx, Math.max(mn, thrValue)))
     }
-  }, [mapRef.current, dims])
+  }, [mapRef.current, dims, thrValue])
 
   useEffect(() => {
     if (!mapUrl) { mapRef.current = null; return }
@@ -357,244 +354,441 @@ export function NiiViewer({ query }) {
   }, [
     dims, ix, iy, iz,
     overlayAlpha, posOnly, useAbs, thrMode, pctl, thrValue,
-    loadingBG, loadingMap, errBG, errMap, query
+    loadingBG, loadingMap, errBG, errMap, effectiveQuery
   ])
 
   const [nx, ny, nz] = dims
-  const nsInputCls = 'w-full rounded border border-gray-400 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400'
-  const nsLabelCls = 'text-sm font-medium'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%' }}>
       <style>{`
-        .nii-quad-grid {
+        .nii-neon-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr;
-          grid-template-rows: 1fr 1fr;
-          gap: 20px;
-          flex: 1;
-          min-height: 0;
-          padding: 8px;
+          grid-template-columns: repeat(2, 1fr);
+          grid-template-rows: repeat(2, 1fr);   /* ✅ 四格平均分配空間 */
+          gap: 16px;
+          width: 100%;
+          height: 70vh;                         /* ✅ viewer 高度佔視窗七成，可自行微調 */
+          align-items: stretch;
+          justify-items: stretch;
         }
-        .nii-quad-item {
+
+        .nii-neon-item {
           display: flex;
           flex-direction: column;
           gap: 10px;
           min-height: 0;
-          background: var(--gray-50);
-          border-radius: 8px;
-          padding: 12px;
+          overflow: hidden;                /* ✅ 防止內容溢出格子 */
+          background: rgba(10, 14, 26, 0.3);
+          border: 1px solid rgba(0, 240, 255, 0.2);
+          border-radius: 16px;
+          padding: 16px;
+          transition: all 0.3s;
         }
-        .nii-quad-label {
+        .nii-neon-item:hover {
+          border-color: rgba(0, 240, 255, 0.5);
+          box-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+        }
+      
+        .nii-neon-label {
           font-size: 13px;
-          color: var(--gray-700);
-          font-weight: 600;
-          padding: 0;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          padding: 8px 14px;
           flex-shrink: 0;
           text-align: center;
-          background: white;
-          padding: 6px 12px;
-          border-radius: 6px;
-          border: 1px solid var(--gray-200);
-        }
-        .nii-quad-canvas {
-          width: 100%;
-          height: 100%;
-          object-fit: contain;
-          border: 1px solid #e5e7eb;
+          background: linear-gradient(135deg, var(--neon-cyan) 0%, var(--neon-purple) 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          border: 1px solid rgba(0, 240, 255, 0.3);
           border-radius: 8px;
-          cursor: crosshair;
-          background: #000;
+          background-color: rgba(0, 240, 255, 0.05);
         }
-        .nii-controls-panel {
-          background: white;
-          border: 1px solid var(--gray-200);
-          border-radius: 8px;
-          padding: 16px;
+      
+        .nii-quad-item {
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(0,240,255,0.15);
+          border-radius: 12px;
+          background: rgba(10,15,25,0.25);
+          backdrop-filter: blur(10px);
+          overflow: hidden;
+          min-height: 0; 
+        }
+
+        /* === 腦圖：自動等比例縮放、永不被拉扯 === */
+        .nii-neon-canvas {
+          display: block;
+          width: 90%;               /* ✅ 自動依格子寬縮放 */
+          height: auto;             /* ✅ 保持比例 */
+          max-width: 100%;         /* ✅ 加入這行 */
+          max-height: 85%;         /* ✅ 從 95% 改為 85%,確保不超出 */
+          object-fit: contain;      /* ✅ 保持完整比例顯示 */
+          background: #000;
+          border-radius: 12px;
+          border: 2px solid rgba(0,240,255,0.4);
+          box-shadow:
+            0 0 20px rgba(0,240,255,0.3),
+            inset 0 0 30px rgba(0,240,255,0.1);
+          cursor: crosshair;
+          transition: box-shadow 0.3s;
+          margin: auto;
+        }
+
+        .nii-neon-canvas:hover {
+          box-shadow:
+            0 0 40px rgba(0,240,255,0.6),
+            inset 0 0 30px rgba(0,240,255,0.2);
+        }
+
+        /* === 控制面板：固定卡片位置，自身滾動，不影響其他格子 === */
+        .nii-controls-panel {
+          display: flex;
+          flex-direction: column;
+          width: 100%;
+          height: 100%;             /* ✅ 占滿格子，但不拉其他格子 */
+          overflow-y: auto;         /* ✅ 卡片內滾動 */
+          padding: 12px;
+          border-radius: 12px;
+          background: rgba(10, 15, 25, 0.45);
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(0,240,255,0.2);
+          box-shadow: inset 0 0 20px rgba(0,240,255,0.1);
+        }
+
+
+
+
+        .nii-neon-controls {
+          background: var(--bg-glass);
+          backdrop-filter: blur(20px);
+          border: 1px solid var(--glass-border);
+          border-radius: 16px;
+          padding: 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
           overflow-y: auto;
           flex: 1;
           min-height: 0;
         }
-        .control-group {
+        .nii-neon-control-group {
           display: flex;
           flex-direction: column;
+          gap: 10px;
+        }
+        .nii-neon-control-label {
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--neon-cyan);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .nii-neon-control-input {
+          width: 100%;
+          padding: 10px 14px;
+          border: 1px solid rgba(0, 240, 255, 0.3);
+          border-radius: 10px;
+          font-size: 14px;
+          background: rgba(30, 41, 59, 0.4);
+          color: var(--text-primary);
+          transition: all 0.3s;
+        }
+        .nii-neon-control-input:focus {
+          outline: none;
+          border-color: var(--neon-cyan);
+          box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+        }
+        .nii-neon-coords {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+          transition: all 0.3s;
+        }
+        .nii-neon-coord-input {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .nii-neon-coord-input label {
+          font-size: 11px;
+          color: var(--text-muted);
+          font-weight: 600;
+        }
+        .nii-neon-slider {
+          width: 100%;
+          height: 8px;
+          border-radius: 10px;
+          background: rgba(30, 41, 59, 0.6);
+          cursor: pointer;
+          accent-color: var(--neon-cyan);
+        }
+        .nii-neon-slider::-webkit-slider-thumb {
+          box-shadow: 0 0 15px rgba(0, 240, 255, 0.8);
+        }
+        .nii-neon-divider {
+          height: 1px;
+          background: linear-gradient(90deg, 
+            transparent 0%, 
+            rgba(0, 240, 255, 0.5) 50%, 
+            transparent 100%);
+          margin: 6px 0;
+        }
+        .nii-neon-checkbox-group {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .nii-neon-checkbox-label {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13px;
+          color: var(--text-secondary);
+          cursor: pointer;
+          transition: color 0.3s;
+        }
+        .nii-neon-checkbox-label:hover {
+          color: var(--neon-cyan);
+        }
+        .nii-neon-checkbox-label input {
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+          accent-color: var(--neon-cyan);
+        }
+        .nii-neon-checkbox-label input:checked {
+          box-shadow: 0 0 15px rgba(0, 240, 255, 0.8);
+        }
+        .nii-neon-download {
+          padding: 12px 20px;
+          text-align: center;
+          border: 1px solid rgba(0, 240, 255, 0.3);
+          border-radius: 10px;
+          background: rgba(0, 240, 255, 0.05);
+          color: var(--neon-cyan);
+          text-decoration: none;
+          font-size: 14px;
+          font-weight: 600;
+          transition: all 0.3s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           gap: 8px;
         }
-        .control-group-title {
-          font-size: 12px;
+        .nii-neon-download:hover {
+          background: rgba(0, 240, 255, 0.15);
+          border-color: var(--neon-cyan);
+          box-shadow: 0 0 25px rgba(0, 240, 255, 0.5);
+          transform: translateY(-2px);
+        }
+        .nii-neon-filter-badge {
+          background: rgba(0, 255, 136, 0.15);
+          border: 1px solid rgba(0, 255, 136, 0.4);
+          padding: 10px 16px;
+          border-radius: 10px;
+          font-size: 13px;
+          color: var(--neon-green);
           font-weight: 600;
-          color: var(--gray-700);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-        .control-divider {
-          height: 1px;
-          background: var(--gray-200);
-          margin: 8px 0;
-        }
-        .control-row {
+          box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
           display: flex;
           align-items: center;
           gap: 8px;
-          justify-content: space-between;
-        }
-        .slider-container {
-          flex: 1;
-        }
-        input[type="range"] {
-          width: 100%;
-        }
-        input[type="checkbox"] {
-          width: 16px;
-          height: 16px;
         }
       `}</style>
 
+      {selectedStudies.length > 0 && (
+        <div className="nii-neon-filter-badge">
+          <span>🔍</span>
+          <span>Showing {selectedStudies.length} selected {selectedStudies.length === 1 ? 'study' : 'studies'}</span>
+        </div>
+      )}
+
       {(loadingBG || loadingMap) && (
-        <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>
-          Loading brain data...
+        <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: '48px', marginBottom: '20px', filter: 'drop-shadow(0 0 20px var(--neon-cyan))', animation: 'pulse 2s ease-in-out infinite' }}>
+            🧠
+          </div>
+          <div style={{ fontSize: '16px', color: 'var(--neon-cyan)' }}>Loading brain data...</div>
         </div>
       )}
 
       {(errBG || errMap) && (
-        <div style={{ padding: '12px', background: '#fefce8', border: '1px solid #fef08a', borderRadius: '8px', fontSize: '13px', color: '#854d0e' }}>
+        <div style={{ padding: '16px 20px', background: 'rgba(255, 0, 110, 0.1)', border: '1px solid rgba(255, 0, 110, 0.3)', borderRadius: '12px', fontSize: '14px', color: 'var(--neon-pink)', boxShadow: '0 0 20px rgba(255, 0, 110, 0.3)' }}>
           {errBG && <div>Background: {errBG}</div>}
           {errMap && <div>Map: {errMap}</div>}
         </div>
       )}
 
       {!!nx && (
-        <>
-          <div className='nii-quad-grid'>
-            {/* Top-left: Sagittal */}
-            <div className='nii-quad-item'>
-              <div className='nii-quad-label'>Sagittal (X)</div>
-              <canvas ref={canvases[2]} className='nii-quad-canvas' onClick={(e)=>onCanvasClick(e, 'x')} />
-            </div>
+        <div className='nii-neon-grid'>
+          {/* Top-left: Sagittal */}
+          <div className='nii-neon-item'>
+            <div className='nii-neon-label'>Sagittal (X)</div>
+            <canvas ref={canvases[2]} className='nii-neon-canvas' onClick={(e)=>onCanvasClick(e, 'x')} />
+          </div>
 
-            {/* Top-right: Coronal */}
-            <div className='nii-quad-item'>
-              <div className='nii-quad-label'>Coronal (Y)</div>
-              <canvas ref={canvases[1]} className='nii-quad-canvas' onClick={(e)=>onCanvasClick(e, 'y')} />
-            </div>
+          {/* Top-right: Coronal */}
+          <div className='nii-neon-item'>
+            <div className='nii-neon-label'>Coronal (Y)</div>
+            <canvas ref={canvases[1]} className='nii-neon-canvas' onClick={(e)=>onCanvasClick(e, 'y')} />
+          </div>
 
-            {/* Bottom-left: Axial */}
-            <div className='nii-quad-item'>
-              <div className='nii-quad-label'>Axial (Z)</div>
-              <canvas ref={canvases[0]} className='nii-quad-canvas' onClick={(e)=>onCanvasClick(e, 'z')} />
-            </div>
+          {/* Bottom-left: Axial */}
+          <div className='nii-neon-item'>
+            <div className='nii-neon-label'>Axial (Z)</div>
+            <canvas ref={canvases[0]} className='nii-neon-canvas' onClick={(e)=>onCanvasClick(e, 'z')} />
+          </div>
 
-            {/* Bottom-right: Controls */}
-            <div className='nii-quad-item'>
-              <div className='nii-quad-label'>Controls</div>
-              <div className='nii-controls-panel'>
-                {/* Coordinates */}
-                <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '10px' }} className='control-group'>
-                  <div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '6px' }}>Coordinates (mm)</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#6b7280' }}>X</span>
-                      <input
-                        type='text' inputMode='decimal'
-                        className={nsInputCls}
-                        value={cx}
-                        onChange={e=>setCx(e.target.value)}
-                        onBlur={()=>commitCoord('x')}
-                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('x') } }}
-                      />
-                    </label>
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#6b7280' }}>Y</span>
-                      <input
-                        type='text' inputMode='decimal'
-                        className={nsInputCls}
-                        value={cy}
-                        onChange={e=>setCy(e.target.value)}
-                        onBlur={()=>commitCoord('y')}
-                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('y') } }}
-                      />
-                    </label>
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#6b7280' }}>Z</span>
-                      <input
-                        type='text' inputMode='decimal'
-                        className={nsInputCls}
-                        value={cz}
-                        onChange={e=>setCz(e.target.value)}
-                        onBlur={()=>commitCoord('z')}
-                        onKeyDown={e=>{ if(e.key==='Enter'){ commitCoord('z') } }}
-                      />
-                    </label>
-                  </div>
-                </div>
-                {/* Overlay Alpha */}
-                <div className='control-group'>
-                  <label className={nsLabelCls}>Overlay Alpha: {overlayAlpha.toFixed(2)}</label>
-                  <input 
-                    type='range' 
-                    min='0' 
-                    max='1' 
-                    step='0.05' 
-                    value={overlayAlpha} 
-                    onChange={e=>setOverlayAlpha(Number(e.target.value))}
-                  />
-                </div>
-
-                {/* Checkboxes */}
-                <div className='control-group'>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                    <input type='checkbox' checked={posOnly} onChange={e=>setPosOnly(e.target.checked)} />
-                    Positive values only
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                    <input type='checkbox' checked={useAbs} onChange={e=>setUseAbs(e.target.checked)} />
-                    Use absolute values
-                  </label>
-                </div>
-
-                {/* Threshold Mode */}
-                <div className='control-group'>
-                  <label className={nsLabelCls}>Threshold mode</label>
-                  <select value={thrMode} onChange={e=>setThrMode(e.target.value)} style={{ width: '100%', padding: '6px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}>
-                    <option value='value'>Value</option>
-                    <option value='pctl'>Percentile</option>
-                  </select>
-                </div>
-
-                {thrMode === 'value' ? (
-                  <div className='control-group'>
-                    <label className={nsLabelCls}>Threshold</label>
-                    <input type='number' step='0.01' value={thrValue} onChange={e=>setThrValue(Number(e.target.value))} className={nsInputCls} />
-                  </div>
-                ) : (
-                  <div className='control-group'>
-                    <label className={nsLabelCls}>Percentile: {pctl}%</label>
-                    <input 
-                      type='range' 
-                      min='50' 
-                      max='99.9' 
-                      step='0.5' 
-                      value={pctl} 
-                      onChange={e=>setPctl(Number(e.target.value)||95)}
+          {/* Bottom-right: Controls */}
+          <div className='nii-neon-item'>
+            <div className='nii-neon-label'>Controls</div>
+            <div className='nii-neon-controls'>
+              
+              {/* Coordinates */}
+              <div className='nii-neon-control-group'>
+                <div className='nii-neon-control-label'>MNI Coordinates (mm)</div>
+                <div className='nii-neon-coords'>
+                  <div className='nii-neon-coord-input'>
+                    <label>X</label>
+                    <input
+                      type='text'
+                      value={cx}
+                      onChange={e=>setCx(e.target.value)}
+                      onBlur={()=>commitCoord('x')}
+                      onKeyDown={e=>{ if(e.key==='Enter') commitCoord('x') }}
+                      className='nii-neon-control-input'
                     />
                   </div>
-                )}
-
-                
-
-                {query && (
-                  <a href={mapUrl} download style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'none', textAlign: 'center', padding: '6px', border: '1px solid #e5e7eb', borderRadius: '6px', background: 'white' }} onMouseEnter={e=>e.target.style.background='#f9fafb'} onMouseLeave={e=>e.target.style.background='white'}>
-                    📥 Download NIfTI Map
-                  </a>
-                )}
+                  <div className='nii-neon-coord-input'>
+                    <label>Y</label>
+                    <input
+                      type='text'
+                      value={cy}
+                      onChange={e=>setCy(e.target.value)}
+                      onBlur={()=>commitCoord('y')}
+                      onKeyDown={e=>{ if(e.key==='Enter') commitCoord('y') }}
+                      className='nii-neon-control-input'
+                    />
+                  </div>
+                  <div className='nii-neon-coord-input'>
+                    <label>Z</label>
+                    <input
+                      type='text'
+                      value={cz}
+                      onChange={e=>setCz(e.target.value)}
+                      onBlur={()=>commitCoord('z')}
+                      onKeyDown={e=>{ if(e.key==='Enter') commitCoord('z') }}
+                      className='nii-neon-control-input'
+                    />
+                  </div>
+                </div>
               </div>
+              {/* Overlay Alpha */}
+              <div className='nii-neon-control-group'>
+                <div className='nii-neon-control-label'>Overlay Opacity: {overlayAlpha.toFixed(2)}</div>
+                <input 
+                  type='range' 
+                  min='0' 
+                  max='1' 
+                  step='0.05' 
+                  value={overlayAlpha} 
+                  onChange={e=>setOverlayAlpha(Number(e.target.value))}
+                  className='nii-neon-slider'
+                />
+              </div>
+
+              {/* Checkboxes */}
+              <div className='nii-neon-checkbox-group'>
+                <label className='nii-neon-checkbox-label'>
+                  <input type='checkbox' checked={posOnly} onChange={e=>setPosOnly(e.target.checked)} />
+                  <span>Positive values only</span>
+                </label>
+                <label className='nii-neon-checkbox-label'>
+                  <input type='checkbox' checked={useAbs} onChange={e=>setUseAbs(e.target.checked)} />
+                  <span>Use absolute values</span>
+                </label>
+              </div>
+
+              <div className='nii-neon-divider' />
+
+              {/* Threshold Mode */}
+              <div className='nii-neon-control-group'>
+                <div className='nii-neon-control-label'>Threshold Mode</div>
+                <select 
+                  value={thrMode} 
+                  onChange={e=>setThrMode(e.target.value)} 
+                  className='nii-neon-control-input'
+                >
+                  <option value='value'>Value</option>
+                  <option value='pctl'>Percentile</option>
+                </select>
+              </div>
+
+              {thrMode === 'value' ? (
+                <div className='nii-neon-control-group'>
+                  <div className='nii-neon-control-label'>Threshold Value</div>
+                  <input 
+                    type='number' 
+                    step='0.01' 
+                    value={thrValue} 
+                    onChange={e=>setThrValue(Number(e.target.value))} 
+                    className='nii-neon-control-input' 
+                  />
+                </div>
+              ) : (
+                <div className='nii-neon-control-group'>
+                  <div className='nii-neon-control-label'>Percentile: {pctl}%</div>
+                  <input 
+                    type='range' 
+                    min='50' 
+                    max='99.9' 
+                    step='0.5' 
+                    value={pctl} 
+                    onChange={e=>setPctl(Number(e.target.value)||95)}
+                    className='nii-neon-slider'
+                  />
+                </div>
+              )}
+
+              <div className='nii-neon-divider' />
+
+ 
+
+              <div className='nii-neon-divider' />
+
+              {/* FWHM */}
+              <div className='nii-neon-control-group'>
+                <div className='nii-neon-control-label'>Gaussian FWHM (mm)</div>
+                <input 
+                  type='number' 
+                  step='0.5' 
+                  value={fwhm} 
+                  onChange={e=>setFwhm(Number(e.target.value)||0)} 
+                  className='nii-neon-control-input' 
+                />
+              </div>
+
+              {effectiveQuery && (
+                <a 
+                  href={mapUrl} 
+                  download 
+                  className='nii-neon-download'
+                >
+                  <span>📥</span>
+                  <span>Download NIfTI Map</span>
+                </a>
+              )}
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   )
 }
+
+export default NiiViewer
