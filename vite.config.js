@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
-  base: '/brain-function-search/',
+  base: '/',
 
   plugins: [react()],
   resolve: {
